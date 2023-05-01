@@ -268,17 +268,23 @@ function formatWorldInfo(value) {
     return `[Details of the fictional world the RP is set in:\n${value}]\n`;
 }
 
+export function getNSFWPrompt() {
+    let nsfw_toggle_prompt = "";
+    if (oai_settings.nsfw_toggle) {
+        nsfw_toggle_prompt = oai_settings.nsfw_prompt;
+    } else {
+        nsfw_toggle_prompt = "Avoid writing a NSFW/Smut reply. Creatively write around it NSFW/Smut scenarios in character.";
+    }
+    return nsfw_toggle_prompt;
+}
+
 async function prepareOpenAIMessages(name2, storyString, worldInfoBefore, worldInfoAfter, extensionPrompt, bias, type) {
     const isImpersonate = type == "impersonate";
     let this_max_context = oai_settings.openai_max_context;
     let nsfw_toggle_prompt = "";
     let enhance_definitions_prompt = "";
 
-    if (oai_settings.nsfw_toggle) {
-        nsfw_toggle_prompt = oai_settings.nsfw_prompt;
-    } else {
-        nsfw_toggle_prompt = "Avoid writing a NSFW/Smut reply. Creatively write around it NSFW/Smut scenarios in character.";
-    }
+    nsfw_toggle_prompt = getNSFWPrompt();
 
     // Experimental but kinda works
     if (oai_settings.enhance_definitions) {
@@ -478,34 +484,40 @@ function checkQuotaError(data) {
     }
 }
 
-async function sendOpenAIRequest(openai_msgs_tosend, signal) {
+async function sendOpenAIRequest(openai_msgs_tosend, signal, oai_settings_override) {
+
+    const oai_settings_final = {
+        ...oai_settings,
+        ...(oai_settings_override ?? {})
+    };
+
     // Provide default abort signal
     if (!signal) {
         signal = new AbortController().signal;
     }
 
-    if (oai_settings.reverse_proxy) {
+    if (oai_settings_final.reverse_proxy) {
         validateReverseProxy();
     }
 
     let logit_bias = {};
 
-    if (oai_settings.bias_preset_selected
-        && Array.isArray(oai_settings.bias_presets[oai_settings.bias_preset_selected])
-        && oai_settings.bias_presets[oai_settings.bias_preset_selected].length) {
+    if (oai_settings_final.bias_preset_selected
+        && Array.isArray(oai_settings_final.bias_presets[oai_settings_final.bias_preset_selected])
+        && oai_settings_final.bias_presets[oai_settings_final.bias_preset_selected].length) {
         logit_bias = biasCache || await calculateLogitBias();
         biasCache = logit_bias;
     }
 
     const generate_data = {
         "messages": openai_msgs_tosend,
-        "model": oai_settings.openai_model,
-        "temperature": parseFloat(oai_settings.temp_openai),
-        "frequency_penalty": parseFloat(oai_settings.freq_pen_openai),
-        "presence_penalty": parseFloat(oai_settings.pres_pen_openai),
-        "max_tokens": oai_settings.openai_max_tokens,
-        "stream": oai_settings.stream_openai,
-        "reverse_proxy": oai_settings.reverse_proxy,
+        "model": oai_settings_final.openai_model,
+        "temperature": parseFloat(oai_settings_final.temp_openai),
+        "frequency_penalty": parseFloat(oai_settings_final.freq_pen_openai),
+        "presence_penalty": parseFloat(oai_settings_final.pres_pen_openai),
+        "max_tokens": oai_settings_final.openai_max_tokens,
+        "stream": oai_settings_final.stream_openai,
+        "reverse_proxy": oai_settings_final.reverse_proxy,
         "logit_bias": logit_bias,
     };
 
@@ -517,7 +529,7 @@ async function sendOpenAIRequest(openai_msgs_tosend, signal) {
         signal: signal,
     });
 
-    if (oai_settings.stream_openai) {
+    if (oai_settings_final.stream_openai) {
         return async function* streamData() {
             const decoder = new TextDecoder();
             const reader = response.body.getReader();

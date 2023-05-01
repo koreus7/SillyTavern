@@ -1,9 +1,7 @@
 {
     "display_name": "Memory",
     "loading_order": 9,
-    "requires": [
-        "summarize"
-    ],
+    "requires": [],
     "optional": [],
     "js": "index.js",
     "css": "style.css",
