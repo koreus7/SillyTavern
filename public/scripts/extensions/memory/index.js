@@ -1,6 +1,7 @@
 import { getStringHash, debounce } from "../../utils.js";
 import { getContext, getApiUrl, extension_settings } from "../../extensions.js";
 import { extension_prompt_types, is_send_press, saveSettingsDebounced } from "../../../script.js";
+import { sendOpenAIRequest, getNSFWPrompt } from "../../openai.js";
 export { MODULE_NAME };
 
 const MODULE_NAME = '1_memory';
@@ -228,31 +229,20 @@ async function summarizeChat(context) {
     // perform the summarization API call
     try {
         inApiCall = true;
-        const url = new URL(getApiUrl());
-        url.pathname = '/api/summarize';
 
-        const apiResult = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Bypass-Tunnel-Reminder': 'bypass',
-            },
-            body: JSON.stringify({
-                text: resultingString,
-                params: {
-                    min_length: extension_settings.memory.longMemoryLength * 0, // testing how it behaves 0 min length
-                    max_length: extension_settings.memory.longMemoryLength,
-                    repetition_penalty: extension_settings.memory.repetitionPenalty,
-                    temperature: extension_settings.memory.temperature,
-                    length_penalty: extension_settings.memory.lengthPenalty,
-                }
-            })
-        });
+        const summaryPrompt = `Summarise the conversation and story. Make sure important detail is preserved, be as detailed as possible. Do not write about anything that happens before or after the conversation or make anything up, only write your summary about those messages in the conversation. Do not indicate your role in the conversation.`;
 
-        if (apiResult.ok) {
-            const data = await apiResult.json();
-            const summary = data.summary;
+        const messages = [
+            { role: "system", content: getNSFWPrompt()},
+            { role: "user", content: resultingString},
+            { role: "user", content: summaryPrompt}
+        ]
 
+        const result = await sendOpenAIRequest(messages, null, {
+            max_tokens: 1000,
+        })
+
+        if (result) {
             const newContext = getContext();
             const postSummaryLastMessage = getStringHash(newContext.chat.length ? newContext.chat[newContext.chat.length - 1] : '');
 
@@ -265,7 +255,7 @@ async function summarizeChat(context) {
                 return;
             }
 
-            setMemoryContext(summary, true);
+            setMemoryContext(result, true);
         }
     }
     catch (error) {
